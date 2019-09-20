@@ -5,13 +5,14 @@ class Redis
       def exists?
         redis.exists key
       end
-      
+
+      # Delete key. Redis: DEL
       def delete
         redis.del key
       end
       alias_method :del, :delete
       alias_method :clear, :delete
-      
+
       def type
         redis.type key
       end
@@ -29,7 +30,7 @@ class Redis
         @key = dest if ret && setkey
         ret
       end
-    
+
       def expire(seconds)
         redis.expire key, seconds
       end
@@ -50,20 +51,19 @@ class Redis
         redis.move key, dbindex
       end
 
-      def sort(options={})
-        options[:order] = "asc alpha" if options.keys.count == 0  # compat with Ruby
-        val = redis.sort(key, options)
-        val.is_a?(Array) ? val.map{|v| unmarshal(v)} : val
+      def serializer
+        options[:serializer] || Marshal
       end
 
       def marshal(value, domarshal=false)
         if options[:marshal] || domarshal
-          Marshal.dump(value)
+          dump_args = options[:marshal_dump_args] || []
+          serializer.dump(value, *(dump_args.is_a?(Array) ? dump_args : [dump_args]))
         else
           value
         end
       end
- 
+
       def unmarshal(value, domarshal=false)
         if value.nil?
           nil
@@ -73,7 +73,8 @@ class Redis
           elsif !value.is_a?(String)
             value
           else
-            Marshal.load(value) 
+            load_args = options[:marshal_load_args] || []
+            serializer.load(value, *(load_args.is_a?(Array) ? load_args : [load_args]))
           end
         else
           value

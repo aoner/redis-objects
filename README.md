@@ -9,7 +9,7 @@ This is **not** an ORM. People that are wrapping ORM’s around Redis are missin
 The killer feature of Redis is that it allows you to perform _atomic_ operations
 on _individual_ data structures, like counters, lists, and sets.  The **atomic** part is HUGE.
 Using an ORM wrapper that retrieves a "record", updates values, then sends those values back,
-_removes_ the atomicity, cutting the nuts off the major advantage of Redis.  Just use MySQL, k?
+_removes_ the atomicity, and thus the major advantage of Redis.  Just use MySQL, k?
 
 This gem provides a Rubyish interface to Redis, by mapping [Redis data types](http://redis.io/commands)
 to Ruby objects, via a thin layer over the `redis` gem.  It offers several advantages
@@ -259,6 +259,18 @@ Complex data is no problem with :marshal => true:
 @newest  = Redis::Value.new('newest_account', :marshal => true)
 @newest.value = @account.attributes
 puts @newest.value['username']
+~~~
+
+Compress data to save memory usage on Redis with :compress => true:
+
+~~~ruby
+@account = Account.create!(params[:account])
+@marshaled_value = Redis::Value.new('marshaled', :marshal => true, :compress => true)
+@marshaled_value.value = @account.attributes
+@unmarshaled_value = Redis::Value.new('unmarshaled', :compress => true)
+@unmarshaled_value = 'Really Long String'
+puts @marshaled_value.value['username']
+puts @unmarshaled_value.value
 ~~~
 
 Lists
@@ -538,11 +550,40 @@ Use :expiration and :expireat options to set default expiration.
 
 ~~~ruby
 value :value_with_expiration, :expiration => 1.hour
-value :value_with_expireat, :expireat => Time.now + 1.hour
+value :value_with_expireat, :expireat => lambda { Time.now + 1.hour }
+~~~
+
+:warning: In the above example, `expiration` is evaluated at class load time.
+In this example, it will be one hour after loading the class, not after one hour
+after setting a value. If you want to expire one hour after setting the value,
+please use `:expireat` with `lambda`.
+
+Custom serialization
+--------------------
+You can customize how values are serialized by setting `serializer: CustomSerializer`.
+The default is `Marshal` from the standard lib, but it can be anything that responds to `dump` and
+`load`. `JSON` and `YAML` are popular options.
+
+If you need to pass extra arguments to `dump` or `load`, you can set
+`marshal_dump_args: { foo: 'bar' }` and `marshal_load_args: { foo: 'bar' }` respectively.
+
+~~~ruby
+class CustomSerializer
+  def self.dump(value)
+    # custom code for serializing
+  end
+
+  def self.load(value)
+    # custom code for deserializing
+  end
+end
+
+@account = Account.create!(params[:account])
+@newest  = Redis::Value.new('custom_serializer', marshal: true, serializer: CustomSerializer)
+@newest.value = @account.attributes
 ~~~
 
 Author
 =======
-Copyright (c) 2009-2013 [Nate Wiger](http://nateware.com).  All Rights Reserved.
+Copyright (c) 2009-2019 [Nate Wiger](http://nateware.com).  All Rights Reserved.
 Released under the [Artistic License](http://www.opensource.org/licenses/artistic-license-2.0.php).
-

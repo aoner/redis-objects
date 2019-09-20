@@ -1,15 +1,11 @@
 require File.dirname(__FILE__) + '/base_object'
+require 'zlib'
 
 class Redis
   #
   # Class representing a simple value.  You can use standard Ruby operations on it.
   #
   class Value < BaseObject
-    require 'redis/helpers/core_commands'
-    include Redis::Helpers::CoreCommands
-
-    attr_reader :key, :options
-
     def value=(val)
       allow_expiration do
         if val.nil?
@@ -30,6 +26,30 @@ class Redis
       end
     end
     alias_method :get, :value
+
+    def marshal(value, *args)
+      if !value.nil? && options[:compress]
+        compress(super)
+      else
+        super
+      end
+    end
+
+    def unmarshal(value, *args)
+      if !value.nil? && options[:compress]
+        super(decompress(value), *args)
+      else
+        super
+      end
+    end
+
+    def decompress(value)
+      Zlib::Inflate.inflate(value)
+    end
+
+    def compress(value)
+      Zlib::Deflate.deflate(value)
+    end
 
     def inspect
       "#<Redis::Value #{value.inspect}>"

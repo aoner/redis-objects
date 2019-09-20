@@ -1,17 +1,10 @@
-require File.dirname(__FILE__) + '/base_object'
+require File.dirname(__FILE__) + '/enumerable_object'
 
 class Redis
   #
   # Class representing a sorted set.
   #
-  class SortedSet < BaseObject
-    # require 'enumerator'
-    # include Enumerable
-    require 'redis/helpers/core_commands'
-    include Redis::Helpers::CoreCommands
-
-    attr_reader :key, :options
-
+  class SortedSet < EnumerableObject
     # How to add values using a sorted set.  The key is the member, eg,
     # "Peter", and the value is the score, eg, 163.  So:
     #    num_posts['Peter'] = 163
@@ -208,7 +201,17 @@ class Redis
     #
     # Redis: SINTER
     def intersection(*sets)
-      redis.zinter(key, *keys_from_objects(sets)).map{|v| unmarshal(v) }
+      result = nil
+      temp_key = :"#{key}:intersection:#{Time.current.to_i + rand}"
+
+      redis.multi do
+        interstore(temp_key, *sets)
+        redis.expire(temp_key, 1)
+
+        result = redis.zrange(temp_key, 0, -1)
+      end
+
+      result.value
     end
     alias_method :intersect, :intersection
     alias_method :inter, :intersection
@@ -235,7 +238,17 @@ class Redis
     #
     # Redis: SUNION
     def union(*sets)
-      redis.zunion(key, *keys_from_objects(sets)).map{|v| unmarshal(v) }
+      result = nil
+      temp_key = :"#{key}:union:#{Time.current.to_i + rand}"
+
+      redis.multi do
+        unionstore(temp_key, *sets)
+        redis.expire(temp_key, 1)
+
+        result = redis.zrange(temp_key, 0, -1)
+      end
+
+      result.value
     end
     alias_method :|, :union
     alias_method :+, :union
@@ -247,31 +260,6 @@ class Redis
         opts = sets.last.is_a?(Hash) ? sets.pop : {}
         redis.zunionstore(key_from_object(name), keys_from_objects([self] + sets), opts)
       end
-    end
-
-    # Return the difference vs another set.  Can pass it either another set
-    # object or set name. Also available as ^ or - which is a bit cleaner:
-    #
-    #    members_difference = set1 ^ set2
-    #    members_difference = set1 - set2
-    #
-    # If you want to specify multiple sets, you must use +difference+:
-    #
-    #    members_difference = set1.difference(set2, set3, set4)
-    #    members_difference = set1.diff(set2, set3, set4)
-    #
-    # Redis: SDIFF
-    def difference(*sets)
-      redis.zdiff(key, *keys_from_objects(sets)).map{|v| unmarshal(v) }
-    end
-    alias_method :diff, :difference
-    alias_method :^, :difference
-    alias_method :-, :difference
-
-    # Calculate the diff and store it in Redis as +name+. Returns the number
-    # of elements in the stored union. Redis: SDIFFSTORE
-    def diffstore(name, *sets)
-      redis.zdiffstore(name, key, *keys_from_objects(sets))
     end
 
     # Returns true if the set has no members. Redis: SCARD == 0
@@ -303,11 +291,12 @@ class Redis
       at(-1)
     end
 
-    # The number of members in the set. Aliased as size. Redis: ZCARD
+    # The number of members in the set. Aliased as size or count. Redis: ZCARD
     def length
       redis.zcard(key)
     end
     alias_method :size, :length
+    alias_method :count, :length
 
     # The number of members within a range of scores. Redis: ZCOUNT
     def range_size(min, max)
