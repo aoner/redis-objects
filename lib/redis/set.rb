@@ -1,17 +1,10 @@
-require File.dirname(__FILE__) + '/base_object'
+require File.dirname(__FILE__) + '/enumerable_object'
 
 class Redis
   #
   # Class representing a set.
   #
-  class Set < BaseObject
-    require 'enumerator'
-    include Enumerable
-    require 'redis/helpers/core_commands'
-    include Redis::Helpers::CoreCommands
-
-    attr_reader :key, :options
-
+  class Set < EnumerableObject
     # Works like add.  Can chain together: list << 'a' << 'b'
     def <<(value)
       add(value)
@@ -27,8 +20,8 @@ class Redis
     end
 
     # Remove and return a random member.  Redis: SPOP
-    def pop
-      unmarshal redis.spop(key)
+    def pop(count = nil)
+      unmarshal redis.spop(key, count)
     end
 
     # return a random member.  Redis: SRANDMEMBER
@@ -72,12 +65,6 @@ class Redis
         end
       end
       res
-    end
-
-    # Iterate through each member of the set.  Redis::Objects mixes in Enumerable,
-    # so you can also use familiar methods like +collect+, +detect+, and so forth.
-    def each(&block)
-      members.each(&block)
     end
 
     # Return the intersection with another set.  Can pass it either another set
@@ -165,7 +152,7 @@ class Redis
       redis.smove(key, destination.is_a?(Redis::Set) ? destination.key : destination.to_s, value)
     end
 
-    # The number of members in the set. Aliased as size. Redis: SCARD
+    # The number of members in the set. Aliased as size or count. Redis: SCARD
     def length
       redis.scard(key)
     end
@@ -183,10 +170,6 @@ class Redis
 
     def to_s
       members.join(', ')
-    end
-
-    def as_json(*)
-      to_hash
     end
 
     private

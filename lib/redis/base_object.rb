@@ -1,6 +1,12 @@
+require 'redis/helpers/core_commands'
+
 class Redis
   # Defines base functionality for all redis-objects.
   class BaseObject
+    include Redis::Helpers::CoreCommands
+
+    attr_reader :key, :options
+
     def initialize(key, *args)
       @key     = key.is_a?(Array) ? key.flatten.join(':') : key
       @options = args.last.is_a?(Hash) ? args.pop : {}
@@ -18,7 +24,9 @@ class Redis
       if !@options[:expiration].nil?
         redis.expire(@key, @options[:expiration]) if redis.ttl(@key) < 0
       elsif !@options[:expireat].nil?
-        redis.expireat(@key, @options[:expireat].to_i) if redis.ttl(@key) < 0
+        expireat = @options[:expireat]
+        at = expireat.respond_to?(:call) ? expireat.call.to_i : expireat.to_i
+        redis.expireat(@key, at) if redis.ttl(@key) < 0
       end
     end
 
@@ -40,6 +48,15 @@ class Redis
 
     def to_hash
       { "key" => @key, "options" => @options, "value" => value }
+    end
+
+    # Math ops - delegate to value method
+    %w(== < > <= >=).each do |m|
+      class_eval <<-EndOverload
+        def #{m}(what)
+          value #{m} what
+        end
+      EndOverload
     end
   end
 end

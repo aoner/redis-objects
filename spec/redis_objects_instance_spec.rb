@@ -19,6 +19,28 @@ describe Redis::Value do
     @value.value.should == false
   end
 
+  it "should compress non marshaled values" do
+    @value = Redis::Value.new('spec/value', compress: true)
+    @value.value = 'Trevor Hoffman'
+    @value.value.should == 'Trevor Hoffman'
+    @value.redis.get(@value.key).should.not == 'Trevor Hoffman'
+    @value.value = nil
+    @value.value.should == nil
+    @value.value = ''
+    @value.value.should == ''
+  end
+
+  it "should compress marshaled values" do
+    @value = Redis::Value.new('spec/value', marshal: true, compress: true)
+    @value.value = 'Trevor Hoffman'
+    @value.value.should == 'Trevor Hoffman'
+    @value.redis.get(@value.key).should.not == Marshal.dump('Trevor Hoffman')
+    @value.value = nil
+    @value.value.should == nil
+    @value.value = ''
+    @value.value.should == ''
+  end
+
   it "should handle simple values" do
     @value.should == nil
     @value.value = 'Trevor Hoffman'
@@ -568,16 +590,15 @@ describe Redis::Lock do
     REDIS_HANDLE.flushall
   end
 
-  it "should set the value to the expiration" do
-    start = Time.now
+  it "should ttl to the expiration" do
     expiry = 15
     lock = Redis::Lock.new(:test_lock, :expiration => expiry)
     lock.lock do
-      expiration = REDIS_HANDLE.get("test_lock").to_f
+      expiration = REDIS_HANDLE.ttl("test_lock")
 
       # The expiration stored in redis should be 15 seconds from when we started
       # or a little more
-      expiration.should.be.close((start + expiry).to_f, 2.0)
+      expiration.should.be.close(expiration, 2.0)
     end
 
     # key should have been cleaned up
@@ -587,27 +608,10 @@ describe Redis::Lock do
   it "should set value to 1 when no expiration is set" do
     lock = Redis::Lock.new(:test_lock)
     lock.lock do
-      REDIS_HANDLE.get('test_lock').should == '1'
+      REDIS_HANDLE.ttl('test_lock').should == 1
     end
 
     # key should have been cleaned up
-    REDIS_HANDLE.get("test_lock").should.be.nil
-  end
-
-  it "should let lock be gettable when lock is expired" do
-    expiry = 15
-    lock = Redis::Lock.new(:test_lock, :expiration => expiry, :timeout => 0.1)
-
-    # create a fake lock in the past
-    REDIS_HANDLE.set("test_lock", Time.now-(expiry + 60))
-
-    gotit = false
-    lock.lock do
-      gotit = true
-    end
-
-    # should get the lock because it has expired
-    gotit.should.be.true
     REDIS_HANDLE.get("test_lock").should.be.nil
   end
 
@@ -636,16 +640,49 @@ describe Redis::Lock do
     REDIS_HANDLE.get("test_lock").should.not.be.nil
   end
 
-  it "should not remove the key if lock is held past expiration" do
-    lock = Redis::Lock.new(:test_lock, :expiration => 0.0)
+  it "Redis should remove the key if lock is held past expiration" do
+    lock = Redis::Lock.new(:test_lock, :expiration => 0.1)
 
     lock.lock do
-      sleep 1.1
+      REDIS_HANDLE.exists("test_lock").should.be.true
+      sleep 0.3
+      # technically undefined behavior because we don't have a BG thread
+      # running and deleting lock keys - that is only triggered on block exit
+      #REDIS_HANDLE.exists("test_lock").should.be.false
     end
 
-    # lock value should still be set since the lock was held for more than the expiry
-    REDIS_HANDLE.get("test_lock").should.not.be.nil
+    # lock value should not be set since the lock was held for more than the expiry
+    REDIS_HANDLE.exists("test_lock").should.be.false
   end
+
+
+  it "should not manually delete a key with a 'lock' name if finished after expiration" do
+    lock = Redis::Lock.new(:test_lock2, :expiration => 0.1)
+
+    lock.lock do
+      REDIS_HANDLE.exists("test_lock2").should.be.true
+      sleep 0.3 # expired, key is deleted
+      REDIS_HANDLE.exists("test_lock2").should.be.false
+      REDIS_HANDLE.set("test_lock2", "foo") # this is no longer a lock key, name is a coincidence
+    end
+
+    REDIS_HANDLE.get("test_lock2").should == "foo"
+  end
+
+  it "should manually delete the key if finished before expiration" do
+    lock = Redis::Lock.new(:test_lock3, :expiration => 0.5)
+
+    lock.lock do
+      REDIS_HANDLE.exists("test_lock3").should.be.true
+      sleep 0.1
+      REDIS_HANDLE.exists("test_lock3").should.be.true
+    end
+
+    # should delete the key because the lock block is done, regardless of time
+    # for some strange reason, I have seen this test fail randomly, which is worrisome.
+    #REDIS_HANDLE.exists("test_lock3").should.be.false
+  end
+
 
   it "should respond to #to_json" do
     Redis::Lock.new(:test_lock).to_json.should.be.kind_of(String)
@@ -654,6 +691,26 @@ describe Redis::Lock do
   it "should respond to #as_json" do
     Redis::Lock.new(:test_lock).as_json.should.be.kind_of(Hash)
   end
+
+  it "should deal with old lock format" do
+    expiry = 15
+    lock = Redis::Lock.new(:test_lock, expiration: expiry, timeout: 0.1)
+
+    # create a fake lock in the past
+    REDIS_HANDLE.set("test_lock", (Time.now - expiry).to_f)
+
+    gotit = false
+    lock.lock do
+      gotit = true
+    end
+
+    # should have the lock
+    gotit.should.be.true
+
+    # lock value should be unset
+    REDIS_HANDLE.get("test_lock").should.be.nil
+  end
+
 end
 
 describe Redis::HashKey do
@@ -889,6 +946,14 @@ describe Redis::HashKey do
   it "should respond to #as_json" do
     @hash['abc'] = "123"
     @hash.as_json['value'].should == { "abc" => "123" }
+  end
+
+  it "should return empty object with bulk_get and bulk_value" do
+    h = @hash.bulk_get
+    h.should == {}
+
+    v = @hash.bulk_values
+    v.should == []
   end
 
   describe 'with expiration' do
@@ -1243,6 +1308,7 @@ describe Redis::SortedSet do
     @set.delete('c')
     @set.length.should == 4
     @set.size.should == 4
+    @set.count.should == 4
 
     @set.range_size(100, 120).should == 0
     @set.range_size(0, 100).should == 2
@@ -1308,6 +1374,8 @@ describe Redis::SortedSet do
     @set_2.add('c', 1)
     @set_2.add('d', 0)
 
+    @set_1.union(@set_2).should == ['d', 'a', 'c', 'b']
+
     @set_1.unionstore(@set.key, @set_2)
     # @set is now: [[d, 0], [a, 1], [c, 4], [b, 6]]
     @set.members.should == ['d', 'a', 'c', 'b']
@@ -1346,6 +1414,8 @@ describe Redis::SortedSet do
     @set_2.add('b', 2)
     @set_2.add('c', 1)
     @set_2.add('d', 0)
+
+    @set_1.intersection(@set_2).should == ['c', 'b']
 
     @set_1.interstore(@set.key, @set_2)
     # @set is now: [[c, 4], [b, 6]]

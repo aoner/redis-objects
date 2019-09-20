@@ -1,8 +1,125 @@
 = Changelog for Redis::Objects
 
+== 1.5.0 (18 Sep 2019)
+
+* updated README on expireat  [Nate Wiger]
+
+* Add option for using a custom serializer [Tomás Rojas]
+
+* DRY up objects to enable custom prefixing when desired [Tomás Rojas]
+
+* Allow spop to return multiple members  [Evan Paul]
+
+* Rename #delete! to #redis_delete_objects [Mattias Pfeiffer]
+
+* Make deletion simpler with just 1 call to Redis [Mattias Pfeiffer]
+
+* Move `CoreCommands` inclusion to `BaseObject`  [Tomás Rojas]
+
+* Move `Enumerable` functionality to `EnumerableObject`  [Tomás Rojas]
+
+* Move `attr_reader`s to `Redis::BaseObject` [Tomás Rojas]
+
+== 1.4.3 (7 Oct 2018)
+
+* Merge pull request #235 from johnc219/fix/end-time-expiration Add expiration in seconds to obtain end_time [Nate Wiger]
+
+* Merge pull request #223 from artinboghosian/compress-redis-value Allow compression of value stored in Redis::Value to save memory on R… [Nate Wiger]
+
+* Merge pull request #224 from artinboghosian/sorted-set-missing-operations Fix set operation methods on SortedSets [Nate Wiger]
+
+* Merge pull request #233 from tmattia/master Add SortedSet#count alias so it's consistent with Set#count [Nate Wiger]
+
+* Merge pull request #236 from nateware/revert-220-threadsafe Revert "Make Redis::Objects.connection thread-safe" [Nate Wiger]
+
+* Revert "Make Redis::Objects.connection thread-safe"  [Nate Wiger]
+
+== 1.4.2 (29 Aug 2018)
+
+* Merge pull request #227 from D-system/optimise_lock Optimise lock [Nate Wiger]
+
+* Merge pull request #228 from D-system/travis_ruby_2.5 Travis: test against ruby 2.5 [Nate Wiger]
+
+* Travis: test against ruby 2.5  [Thomas Brennetot]
+
+* Lock: update comment  [Thomas Brennetot]
+
+* Lock: add backward compatibility  [Thomas Brennetot]
+
+* Use SET with the NX and the expiration option in a single request  [Thomas Brennetot]
+
+* Merge pull request #218 from edwardbako/list_pushed_count Return count of lpush & rpush commands [Nate Wiger]
+
+* Merge pull request #220 from gammons/threadsafe Make Redis::Objects.connection thread-safe [Nate Wiger]
+
+* Make Redis::Objects.connection threadsafe  [Grant Ammons]
+
+* Return count of lpush & rpush commands  [Edward Bako]
+
+* Removed support for versions of Ruby < 2.2  [Nate Wiger]
+
+== 1.4.1 (Unreleased)
+
+* Buggy release that was removed
+
+== 1.4.0 (7 Dec 2017)
+
+* Bumped dependency to redis.rb 4.0 [Nate Wiger]
+
+== 1.3.1 (29 Aug 2017)
+
+* Merge pull request #213 from onk/feature/proc_expireat Allow to set proc for expireat [Nate Wiger]
+
+* Merge pull request #212 from yuzixun/hotfix/counter modify Counter#nil? [Nate Wiger]
+
+* Merge pull request #207 from i2bskn/improve_bulk_get Reduce query to Redis. [Nate Wiger]
+
+* Merge pull request #209 from yuzixun/hotfix/hash_key/bulk_related fix error when fields/keys is an array [Nate Wiger]
+
+* Use pre-calculated symbols for instance_variable_(get|set) for performance #211  [Nate Wiger]
+
+* Weird inheriting from version AR::Migration thingy  [Nate Wiger]
+
+* Reduce query to Redis. Don't query to Redis if #bulk_get/#bulk_values arguments is empty. [i2bskn]
+
+== 1.3.0 (11 Mar 2017)
+
+* handle two Redis::Counter objects adding/subtracting  [Nate Wiger]
+
+* Merge pull request #193 from Galathius/Galathius-patch-1 Doesn't set default value to redis when just try read [Galathius]
+
+* Merge pull request #194 from oggy/pop-shift-n Add support for popping/shifting multiple elements from a List. [oggy]
+
+* Merge pull request #199 from bf4/fix_hashkey_hmget_empty_collection Fixes case of hmget empty collection [bf4]
+
+* Merge pull request #200 from liukgg/master Add method "mget" to improve efficiency for fetching values of  multiple objects  [liukgg]
+
+* Fixes case of hmget empty collection to return nil or raise the appropriate error [Benjamin Fleischer]
+
+* Merge pull request #189 from mneumark/add_delete_whole_object_method Add @object.delete! whole object delete method [mneumark]
+
+* fix some tests for changes in AR 4.2  [nateware]
+
+* Add support for popping/shifting multiple elements from a List like ruby's array [George Ogata]
+
+* Merge pull request #187 from rossta/bug_fix_to_json Add more complete #to_json and #as_json to also address recursion bugs [Ross Kaffenberger]
+
+* Doesn't set default value to redis if just try to read  [Ilya Kamenko]
+
+* Add specs for #as_json  [Ross Kaffenberger]
+
+* Implement BaseObject#as_json and #to_json in terms of #to_hash  [Ross Kaffenberger]
+
+* Add delete! method to Redis::Objects [Micah Neumark]
+
+* Implement #value, #to_json for Redis::BaseObject to fix previous situations where #to_json would hang [Ross Kaffenberger]
+
+* Reproduce blocking #to_json call issue #134 When using ActiveSupport's Object#to_json [Ross Kaffenberger]
+
 == 1.2.1 (1 Nov 2015)
 
 * Fixed use of #tap which caused issues with pipelined calls [Ross Kaffenberger]
+
 * Removed setnx on get some value with default option [Ilya Kamenko]
 
 == 1.2.0 (30 Apr 2015)
@@ -226,4 +343,3 @@
 == 0.2.1 (27 Nov 2009)
 
 * First worthwhile public release, with good spec coverage and functionality. [Nate Wiger]
-

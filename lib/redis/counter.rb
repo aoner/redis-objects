@@ -9,10 +9,6 @@ class Redis
   # class to define a counter.
   #
   class Counter < BaseObject
-    require 'redis/helpers/core_commands'
-    include Redis::Helpers::CoreCommands
-
-    attr_reader :key, :options
     def initialize(key, *args)
       super(key, *args)
       @options[:start] ||= @options[:default] || 0
@@ -114,13 +110,18 @@ class Redis
     # Proxy methods to help make @object.counter == 10 work
     def to_s; value.to_s; end
     alias_method :to_i, :value
-    def nil?; value.nil? end
 
+    def nil?
+      !redis.exists(key)
+    end
+
+    ##
     # Math ops
-    %w(== < > <= >=).each do |m|
+    # This needs to handle +/- either actual integers or other Redis::Counters
+    %w(+ - == < > <= >=).each do |m|
       class_eval <<-EndOverload
-        def #{m}(x)
-          value #{m} x
+        def #{m}(what)
+          value.to_i #{m} what.to_i
         end
       EndOverload
     end
@@ -142,4 +143,3 @@ class Redis
     end
   end
 end
-
