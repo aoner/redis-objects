@@ -25,7 +25,7 @@ class Redis
     # Get the lock and execute the code block. Any other code that needs the lock
     # (on any server) will spin waiting for the lock up to the :timeout
     # that was specified when the lock was defined.
-    def lock
+    def redis_lock
       raise ArgumentError, 'Block not given' unless block_given?
       expiration_ms = generate_expiration
       expiration_s  = expiration_ms / 1000.0
